@@ -2,11 +2,13 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Banknote, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Crosshair, MapPin, Minus, Plus, Search, ShoppingBag, Sparkles, Upload, X } from 'lucide-react';
+import { AdminDashboard, EmployeeLogin } from './Admin';
+import { getEmployeeSession, type EmployeeSession } from './auth';
+import { loadContent } from './contentStore';
+import { milestones, timeSlots, values, type SiteContent } from './data';
 import { MexicoMap } from './MexicoMap';
 import './styles.css';
 
-type Product = { id: number; name: string; description: string; price: number; category: string; image: string; tag?: string };
-type Store = { city: string; address: string; state: string; hours: string; featured?: boolean };
 type CheckoutStep = 'cart' | 'store' | 'day' | 'time' | 'payment' | 'done';
 type PaymentMethod = 'cash' | 'transfer';
 
@@ -18,57 +20,18 @@ const checkoutBack: Partial<Record<CheckoutStep, CheckoutStep>> = {
   payment: 'time',
 };
 
-const timeSlots = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
-
-const transferInfo = {
-  bank: 'BBVA México',
-  holder: 'Suspiros Cakes S.A. de C.V.',
-  clabe: '012 180 001234567890',
-  concept: 'Pedido Suspiros',
-};
-
-const products: Product[] = [
-  { id: 1, name: 'Chocolate Suspiro', description: 'Bizcocho de chocolate, mousse y ganache semiamargo.', price: 495, category: 'Pasteles', tag: 'Favorito', image: 'https://images.pexels.com/photos/17939219/pexels-photo-17939219.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 2, name: 'Fresas & Crema', description: 'Vainilla ligera, crema batida y fresas de temporada.', price: 465, category: 'Pasteles', image: 'https://images.pexels.com/photos/9329433/pexels-photo-9329433.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 3, name: 'Cheesecake de la casa', description: 'Textura sedosa, base de galleta y frutos rojos.', price: 420, category: 'Cheesecakes', tag: 'Nuevo', image: 'https://images.pexels.com/photos/35225556/pexels-photo-35225556.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 4, name: 'Caja de Suspiros', description: 'Seis bocados suaves para compartir el momento.', price: 265, category: 'Bollitos', image: 'https://images.pexels.com/photos/8498186/pexels-photo-8498186.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 5, name: 'Brownie intenso', description: 'Chocolate oscuro, nuez tostada y sal de mar.', price: 195, category: 'Brownies', image: 'https://images.pexels.com/photos/18874692/pexels-photo-18874692.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-  { id: 6, name: 'Tarta de almendra', description: 'Crema de almendra, mantequilla y un acabado crujiente.', price: 310, category: 'Temporada', image: 'https://images.pexels.com/photos/34844491/pexels-photo-34844491.jpeg?auto=compress&cs=tinysrgb&h=650&w=940' },
-];
-
-const stores: Store[] = [
-  { city: 'Hermosillo', address: 'Blvd. Morelos 220, Col. Centro', state: 'Sonora', hours: 'Lun — Dom · 10:00 — 20:00', featured: true },
-  { city: 'Mexicali', address: 'Gral. Santiago Vidaurri 460, Jardines de Calafia', state: 'Baja California', hours: 'Lun — Dom · 10:00 — 20:00' },
-  { city: 'Tijuana', address: 'Av. Colina de San Pablo, Colinas de la Presa', state: 'Baja California', hours: 'Lun — Dom · 10:00 — 20:00' },
-  { city: 'Saltillo', address: 'Blvd. Isidro López Zertuche 1275', state: 'Coahuila', hours: 'Lun — Dom · 10:00 — 20:00' },
-  { city: 'Monterrey', address: 'Av. Suspiroblo II 245, Riberas de las Puentes', state: 'Nuevo León', hours: 'Lun — Dom · 10:00 — 20:00' },
-  { city: 'San José del Cabo', address: 'Calle Forjadores, Col. Santa Rosa', state: 'Baja California Sur', hours: 'Lun — Dom · 10:00 — 20:00' },
-  { city: 'Querétaro', address: 'Plaza Real, Camino Real 307, Valle Real', state: 'Querétaro', hours: 'Lun — Dom · 10:00 — 20:00' },
-];
-
-const milestones = [
-  { year: '2004', title: 'El primer suspiro', copy: 'Abrimos nuestra primera cocina en Hermosillo con una idea simple: que cada pastel se sintiera hecho para alguien.' },
-  { year: '2012', title: 'Más allá de Sonora', copy: 'Llegamos a Baja California y empezamos a compartir la misma receta en nuevas ciudades.' },
-  { year: '2018', title: 'Una familia más grande', copy: 'Abrimos en el norte y el centro del país. Misma esencia, nuevas mesas para celebrar.' },
-  { year: 'Hoy', title: 'Momentos en todo México', copy: 'Siete sucursales y una sola intención: convertir un día cualquiera en un recuerdo dulce.' },
-];
-
-const values = [
-  { title: 'Hecho a mano', copy: 'Cada pieza sale de nuestra cocina, con tiempos reales y detalle paciente.' },
-  { title: 'Ingredientes honestos', copy: 'Elegimos lo mejor de temporada para que el sabor hable por sí solo.' },
-  { title: 'Cerca de ti', copy: 'Desde Hermosillo hasta Cabo, queremos estar donde se celebra.' },
-];
-
 const money = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
 
-type AppView = 'home' | 'products' | 'stores' | 'historia';
+type AppView = 'home' | 'products' | 'stores' | 'historia' | 'login' | 'admin';
 
 function App() {
   const [view, setView] = useState<AppView>('home');
+  const [content, setContent] = useState<SiteContent>(() => loadContent());
+  const [session, setSession] = useState<EmployeeSession | null>(() => getEmployeeSession());
   const [cart, setCart] = useState<Record<number, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedStore, setSelectedStore] = useState(stores[0]);
+  const [selectedStore, setSelectedStore] = useState(() => loadContent().stores[0]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
@@ -80,11 +43,13 @@ function App() {
   const [receiptIsImage, setReceiptIsImage] = useState(true);
   const [orderId, setOrderId] = useState('');
   const receiptInputRef = useRef<HTMLInputElement>(null);
+  const logoTapRef = useRef<{ count: number; timer: number | null }>({ count: 0, timer: null });
 
-  const cartItems = useMemo(() => products.filter((product) => cart[product.id]), [cart]);
+  const { products, stores, transferInfo } = content;
+  const cartItems = useMemo(() => products.filter((product) => cart[product.id]), [cart, products]);
   const cartCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * (cart[item.id] ?? 0), 0);
-  const categories = ['Todos', 'Pasteles', 'Brownies', 'Cheesecakes', 'Bollitos', 'Temporada'];
+  const categories = ['Todos', ...content.categories];
   const filteredProducts = products.filter((product) => (category === 'Todos' || product.category === category) && product.name.toLowerCase().includes(query.toLowerCase()));
   const pickupDays = useMemo(() => {
     const formatter = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -98,13 +63,76 @@ function App() {
 
   useEffect(() => () => { if (receiptPreview && receiptIsImage) URL.revokeObjectURL(receiptPreview); }, [receiptPreview, receiptIsImage]);
 
+  useEffect(() => {
+    if (!stores.length) return;
+    const stillExists = stores.some((store) => store.city === selectedStore.city);
+    if (!stillExists) setSelectedStore(stores[0]);
+  }, [stores, selectedStore.city]);
+
   const addToCart = (id: number) => { setCart((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 })); setCheckoutStep('cart'); setCartOpen(true); };
   const updateQuantity = (id: number, delta: number) => setCart((current) => { const next = Math.max(0, (current[id] ?? 0) + delta); const copy = { ...current }; if (next === 0) delete copy[id]; else copy[id] = next; return copy; });
   const navigate = (nextView: AppView) => { setView(nextView); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  const openStaffArea = () => {
+    navigate(session ? 'admin' : 'login');
+  };
+
+  const handleLogoClick = () => {
+    const tap = logoTapRef.current;
+    if (tap.timer) window.clearTimeout(tap.timer);
+    tap.count += 1;
+    if (tap.count >= 3) {
+      tap.count = 0;
+      openStaffArea();
+      return;
+    }
+    tap.timer = window.setTimeout(() => {
+      if (tap.count > 0 && tap.count < 3) navigate('home');
+      tap.count = 0;
+    }, 420);
+  };
+
   const selectState = (state: string) => {
     const match = stores.find((store) => store.state === state);
     if (match) setSelectedStore(match);
   };
+
+  if (view === 'login') {
+    return (
+      <EmployeeLogin
+        onCancel={() => navigate('home')}
+        onSuccess={(nextSession) => {
+          setSession(nextSession);
+          navigate('admin');
+        }}
+      />
+    );
+  }
+
+  if (view === 'admin') {
+    if (!session) {
+      return (
+        <EmployeeLogin
+          onCancel={() => navigate('home')}
+          onSuccess={(nextSession) => {
+            setSession(nextSession);
+            navigate('admin');
+          }}
+        />
+      );
+    }
+    return (
+      <AdminDashboard
+        content={content}
+        onChange={setContent}
+        onExit={() => navigate('home')}
+        onLogout={() => {
+          setSession(null);
+          navigate('home');
+        }}
+      />
+    );
+  }
 
   const resetCheckout = () => {
     setCheckoutStep('cart');
@@ -163,7 +191,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="site-header">
-      <button className="wordmark" onClick={() => navigate('home')} aria-label="Ir al inicio"><img src="/images/logo.png" alt="Suspiros Cakes" /></button>
+      <button className="wordmark" onClick={handleLogoClick} aria-label="Ir al inicio"><img src="/images/logo.png" alt="Suspiros Cakes" /></button>
       <nav className="desktop-nav" aria-label="Navegación principal"><button onClick={() => navigate('products')}>Pasteles</button><button onClick={() => navigate('stores')}>Ubicaciones</button><button onClick={() => navigate('historia')}>Nuestra historia</button></nav>
       <div className="header-actions"><button className="location-pill" onClick={() => navigate('stores')}><MapPin size={15} /> {selectedStore.city}<ChevronDown size={14} /></button><button className="cart-button" onClick={() => setCartOpen(true)} aria-label="Abrir carrito"><ShoppingBag size={19} /><span>{cartCount}</span></button><button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Abrir menú"><span></span><span></span></button></div>
     </header>
